@@ -1,0 +1,91 @@
+{
+  "name": "git-commit-generator",
+  "displayName": "AI Git Commit Message Generator",
+  "description": "Generate intelligent git commit messages using AI based on staged changes",
+  "version": "0.1.0",
+  "publisher": "kiro",
+  "engines": {
+    "kiro": "^1.0.0"
+  },
+  "categories": [
+    "Git",
+    "AI Tools"
+  ],
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "automation",
+    "conventional-commits"
+  ],
+  "activationEvents": [
+    "onCommand:git-commit-generator.generate",
+    "onView:scm"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "git-commit-generator.generate",
+        "title": "Generate Git Commit Message",
+        "category": "Git"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "git-commit-generator.generate",
+          "when": "scmProvider == git",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "git-commit-generator.generate",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git Commit Generator",
+      "properties": {
+        "commitMessageGenerator.enableConventionalCommits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable conventional commit format"
+        },
+        "commitMessageGenerator.customCommitTypes": {
+          "type": "array",
+          "default": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
+          "description": "Custom commit types to use"
+        },
+        "commitMessageGenerator.includeScope": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include scope in commit messages"
+        },
+        "commitMessageGenerator.maxSubjectLength": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum length for commit subject line"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "package": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "@types/vscode": "^1.80.0"
+  },
+  "dependencies": {
+    "simple-git": "^3.19.0"
+  }
+}
