@@ -15,7 +15,7 @@ Generate intelligent, conventional commit messages using AI based on your staged
 
 ### Method 1: Install from Folder (Recommended for Development)
 
-1. Open Kiro IDEs
+1. Open Kiro IDE
 2. Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
 3. Run: `Extensions: Install from Folder`
 4. Select this project folder
