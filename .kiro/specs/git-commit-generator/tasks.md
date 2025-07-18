@@ -64,10 +64,10 @@
   - Write tests for context menu registration and conditional visibility
   - _Requirements: 3.1, 3.4_
 
-- [ ] 9. Create git panel button UI component
+- [ ] 9. Create source control panel button UI component
 
-  - Design and implement generate button near commit message input field
-  - Add button styling with AI/magic wand icon and tooltip
+  - Design and implement generate button on the right side of the commit message input field
+  - Add button styling with AI/magic wand icon and tooltip, positioned inline with input
   - Implement button click handler and loading states during generation
   - Write UI tests for button visibility, interaction, and state management
   - _Requirements: 3.3, 3.4_

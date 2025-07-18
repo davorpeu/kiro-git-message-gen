@@ -36,7 +36,7 @@ This feature will create a Kiro IDE extension that generates intelligent git com
 
 1. WHEN the user right-clicks in the git panel THEN the system SHALL show a "Generate Commit Message" context menu option
 2. WHEN the user uses the command palette THEN the system SHALL provide a "Generate Git Commit Message" command
-3. WHEN the user has the git panel open THEN the system SHALL show a generate button near the commit message input
+3. WHEN the user has the source control panel open THEN the system SHALL show a generate button on the right side of the commit message input field
 4. WHEN the extension is activated THEN all interface options SHALL be available and functional
 
 ### Requirement 4

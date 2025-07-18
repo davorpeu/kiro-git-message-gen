@@ -5,11 +5,12 @@
   "version": "0.1.0",
   "publisher": "kiro",
   "engines": {
+    "vscode": "^1.80.0",
     "kiro": "^1.0.0"
   },
   "categories": [
-    "Git",
-    "AI Tools"
+    "SCM Providers",
+    "AI"
   ],
   "keywords": [
     "git",
@@ -37,6 +38,13 @@
           "command": "git-commit-generator.generate",
           "when": "scmProvider == git",
           "group": "navigation"
+        }
+      ],
+      "scm/inputBox": [
+        {
+          "command": "git-commit-generator.generate",
+          "when": "scmProvider == git",
+          "group": "inline"
         }
       ],
       "commandPalette": [

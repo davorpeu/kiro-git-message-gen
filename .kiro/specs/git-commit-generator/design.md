@@ -74,11 +74,12 @@ sequenceDiagram
 - **Label**: "Generate Commit Message"
 - **Condition**: Only visible when staged changes exist
 
-#### Git Panel Button
+#### Source Control Panel Button
 
-- **Location**: Near commit message input field
+- **Location**: Right side of the commit message input field in the source control panel
 - **Icon**: AI/magic wand icon
 - **Tooltip**: "Generate commit message with AI"
+- **Positioning**: Inline with the input field, similar to other action buttons
 
 ### 3. Core Generation Engine
 
