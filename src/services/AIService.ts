@@ -372,8 +372,14 @@ Rules:
 
     // Determine scope based on file paths
     const commonPaths = files
-      .map((f) => f?.path.split("/")[1] || f?.path.split("/")[0])
+      .map((f) => {
+        const path = f?.path || "";
+        // Skip root-level files like README.md, package.json for scope detection
+        if (!path.includes("/")) return null;
+        return path.split("/")[1] || path.split("/")[0];
+      })
       .filter(Boolean) as string[];
+
     if (commonPaths.length > 0) {
       const pathCounts = commonPaths.reduce((acc, path) => {
         if (path) {
@@ -391,8 +397,17 @@ Rules:
     if (files.length === 1) {
       const file = files[0];
       const fileName = file?.path.split("/").pop() || file?.path;
-      description =
-        file?.status === "added" ? `add ${fileName}` : `update ${fileName}`;
+
+      // Check if this is a deletion (only deletions, no additions)
+      const isDeletion = this.isDeletionChange(prompt, file?.path || "");
+
+      if (file?.status === "added") {
+        description = `add ${fileName}`;
+      } else if (isDeletion) {
+        description = `remove ${fileName}`;
+      } else {
+        description = `update ${fileName}`;
+      }
     } else if (files.length > 1) {
       // Find the file with the most changes to determine primary purpose
       // Focus on the most important file based on path
@@ -419,7 +434,6 @@ Rules:
     // Check for branding/naming changes first
     const hasBrandingChanges = this.detectBrandingChanges(prompt);
     if (hasBrandingChanges.isBrandingChange) {
-      debug - current - cha;
       description = hasBrandingChanges.description;
       commitType = hasBrandingChanges.type;
       scope = ""; // No scope for branding changes - they affect the whole extension
@@ -646,6 +660,49 @@ Rules:
       description: "",
       type: "",
     };
+  }
+
+  /**
+   * Detect if a change is primarily a deletion
+   */
+  private isDeletionChange(prompt: string, filePath: string): boolean {
+    // Look for patterns indicating deletion
+    const fileSection = this.extractFileSection(prompt, filePath);
+    if (!fileSection) return false;
+
+    // Check if there are only deletions (lines starting with -)
+    const lines = fileSection.split("\n");
+    const deletionLines = lines.filter(
+      (line) => line.trim().startsWith("-") && line.trim() !== "-"
+    );
+    const additionLines = lines.filter(
+      (line) => line.trim().startsWith("+") && line.trim() !== "+"
+    );
+
+    // It's a deletion if there are many deletions and no/few additions
+    return deletionLines.length > 5 && additionLines.length === 0;
+  }
+
+  /**
+   * Extract the section of the prompt related to a specific file
+   */
+  private extractFileSection(prompt: string, filePath: string): string {
+    const fileMarker = `📁 ${filePath}`;
+    const startIndex = prompt.indexOf(fileMarker);
+    if (startIndex === -1) return "";
+
+    // Find the next file marker or end of changes section
+    const nextFileIndex = prompt.indexOf("📁 ", startIndex + fileMarker.length);
+    const analysisIndex = prompt.indexOf("Analysis:", startIndex);
+
+    const endIndex =
+      nextFileIndex !== -1
+        ? nextFileIndex
+        : analysisIndex !== -1
+        ? analysisIndex
+        : prompt.length;
+
+    return prompt.substring(startIndex, endIndex);
   }
 
   /**
