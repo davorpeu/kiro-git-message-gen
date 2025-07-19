@@ -14,7 +14,7 @@ let commitMessageGenerator: CommitMessageGeneratorImpl;
  * Called when the extension is activated
  */
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Git Commit Message Generator extension is now active");
+  console.log("Kiro Git Commit Message Generator extension is now active");
 
   // Initialize services
   initializeServices(context);
@@ -44,7 +44,9 @@ export function activate(context: vscode.ExtensionContext) {
  * Called when the extension is deactivated
  */
 export function deactivate() {
-  console.log("Git Commit Message Generator extension is being deactivated");
+  console.log(
+    "Kiro Git Commit Message Generator extension is being deactivated"
+  );
   // Cleanup resources if needed
   cleanupServices();
 }
@@ -252,7 +254,7 @@ function initializeServices(context: vscode.ExtensionContext): void {
   } catch (error) {
     console.error("Failed to initialize extension services:", error);
     vscode.window.showErrorMessage(
-      `Failed to initialize Git Commit Generator: ${
+      `Failed to initialize Kiro Git Commit Generator: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );

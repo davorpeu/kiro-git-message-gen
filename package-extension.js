@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('📦 Packaging Git Commit Generator Extension...\n');
+console.log('📦 Packaging Kiro Git Commit Generator Extension...\n');
 
 // Check if all required files exist
 const requiredFiles = [

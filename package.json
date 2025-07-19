@@ -1,7 +1,7 @@
 {
   "name": "git-commit-generator",
-  "displayName": "AI Git Commit Message Generator",
-  "description": "Generate intelligent git commit messages using AI based on staged changes",
+  "displayName": "Kiro Git Commit Message Generator",
+  "description": "Generate intelligent git commit messages using Kiro's AI based on your code changes",
   "version": "0.1.0",
   "publisher": "kiro",
   "engines": {
@@ -56,7 +56,7 @@
       ]
     },
     "configuration": {
-      "title": "Git Commit Generator",
+      "title": "Kiro Git Commit Generator",
       "properties": {
         "commitMessageGenerator.enableConventionalCommits": {
           "type": "boolean",

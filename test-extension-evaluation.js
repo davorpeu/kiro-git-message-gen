@@ -2,7 +2,7 @@
 const { ChangeAnalysisServiceImpl } = require('./dist/services/ChangeAnalysisService');
 
 async function evaluateExtension() {
-    console.log('🔍 Git Commit Message Generator - Extension Evaluation\n');
+    console.log('🔍 Kiro Git Commit Message Generator - Extension Evaluation\n');
 
     // Test different scenarios that users might encounter
     const testScenarios = [

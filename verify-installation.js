@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🔍 Verifying Git Commit Generator Extension Installation...\n');
+console.log('🔍 Verifying Kiro Git Commit Generator Extension Installation...\n');
 
 // Check package.json
 console.log('📦 Package Configuration:');

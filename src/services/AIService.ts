@@ -416,8 +416,16 @@ Rules:
       description = "implement changes";
     }
 
+    // Check for branding/naming changes first
+    const hasBrandingChanges = this.detectBrandingChanges(prompt);
+    if (hasBrandingChanges.isBrandingChange) {
+      debug - current - cha;
+      description = hasBrandingChanges.description;
+      commitType = hasBrandingChanges.type;
+      scope = ""; // No scope for branding changes - they affect the whole extension
+    }
     // Use change context to improve description with more specificity
-    if (
+    else if (
       changeContext.hasNewFunctions &&
       changeContext.newFunctions.length > 0
     ) {
@@ -576,6 +584,67 @@ Rules:
       hasNullChecks,
       hasValidation,
       mainChangeType: this.determineMainChangeType(addedLines),
+    };
+  }
+
+  /**
+   * Detect branding/naming changes in the prompt
+   */
+  private detectBrandingChanges(prompt: string): {
+    isBrandingChange: boolean;
+    description: string;
+    type: string;
+  } {
+    // Look for name/branding changes - simpler, more reliable detection
+    const hasAIGenerator = prompt.includes("AI Git Commit Message Generator");
+    const hasKiroGenerator = prompt.includes(
+      "Kiro Git Commit Message Generator"
+    );
+    const hasDisplayNameChange =
+      prompt.includes("displayName") && hasAIGenerator && hasKiroGenerator;
+    const hasTitleChange =
+      prompt.includes("title") &&
+      prompt.includes("Git Commit Generator") &&
+      prompt.includes("Kiro Git Commit Generator");
+    const hasNameRebrand =
+      hasAIGenerator &&
+      hasKiroGenerator &&
+      (hasDisplayNameChange || hasTitleChange);
+
+    const hasBrandingChange = hasNameRebrand;
+
+    if (hasBrandingChange) {
+      // Determine if it's docs (README) or chore (config files)
+      const hasReadmeChanges = prompt.includes("README.md");
+      const hasConfigChanges =
+        prompt.includes("package.json") || prompt.includes("extension.ts");
+
+      if (hasReadmeChanges && hasConfigChanges) {
+        return {
+          isBrandingChange: true,
+          description: "rebrand extension to Kiro Git Commit Message Generator",
+          type: "chore",
+        };
+      } else if (hasReadmeChanges) {
+        return {
+          isBrandingChange: true,
+          description: "update branding to Kiro Git Commit Message Generator",
+          type: "docs",
+        };
+      } else {
+        return {
+          isBrandingChange: true,
+          description:
+            "update extension name to Kiro Git Commit Message Generator",
+          type: "chore",
+        };
+      }
+    }
+
+    return {
+      isBrandingChange: false,
+      description: "",
+      type: "",
     };
   }
 
