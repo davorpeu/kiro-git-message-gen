@@ -1,6 +1,6 @@
 # 🤖 AI Git Commit Message Generator
 
-Generate intelligent, conventional commit messages using AI based on your staged changes in Kiro IDE.
+Generate intelligent, conventional commit messages using AI based on your changes in Kiro IDE.
 
 ## ✨ Features
 
