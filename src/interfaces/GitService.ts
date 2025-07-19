@@ -26,6 +26,7 @@ export interface ConflictInfo {
 }
 
 export interface GitService {
+  getAllChanges(): Promise<GitDiff>;
   getStagedChanges(): Promise<GitDiff>;
   getRepositoryStatus(): Promise<RepoStatus>;
   isValidRepository(): Promise<boolean>;

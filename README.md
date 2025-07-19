@@ -26,26 +26,20 @@ Copy this entire folder to your Kiro IDE extensions directory.
 
 ## 🎯 Usage
 
-### Option 1: Source Control Panel Button
+### Primary Method: Source Control Panel Button (Like GitHub Copilot)
 
 1. Open the Source Control panel in Kiro IDE
 2. Stage your changes (`git add <files>`)
-3. Click the **AI generate button** on the right side of the commit message input field
-4. Review and edit the generated message
-5. Choose to copy, insert, or edit the message
+3. Click the **sparkle (✨) button** in the commit message input field
+4. The AI-generated commit message will be **automatically inserted** into the input field
+5. Review and edit if needed, then commit!
 
-### Option 2: Command Palette
+### Alternative: Command Palette
 
 1. Stage your changes
 2. Open Command Palette (`Ctrl+Shift+P`)
-3. Run: `Generate Git Commit Message`
-4. Review the generated message
-
-### Option 3: Context Menu
-
-1. Stage your changes
-2. Right-click in the Source Control panel
-3. Select `Generate Commit Message`
+3. Run: `Generate a commit message with AI`
+4. The message will be automatically inserted into the Source Control panel
 
 ## 🔧 Configuration
 

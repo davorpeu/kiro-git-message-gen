@@ -28,8 +28,9 @@
     "commands": [
       {
         "command": "git-commit-generator.generate",
-        "title": "Generate Git Commit Message",
-        "category": "Git"
+        "title": "Generate a commit message with AI",
+        "category": "Git",
+        "icon": "$(sparkle)"
       }
     ],
     "menus": {
@@ -43,8 +44,8 @@
       "scm/inputBox": [
         {
           "command": "git-commit-generator.generate",
-          "when": "scmProvider == git",
-          "group": "inline"
+          "when": "scmProvider == git && scmInputBoxFocus",
+          "group": "inline@1"
         }
       ],
       "commandPalette": [
@@ -64,7 +65,15 @@
         },
         "commitMessageGenerator.customCommitTypes": {
           "type": "array",
-          "default": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
+          "default": [
+            "feat",
+            "fix",
+            "docs",
+            "style",
+            "refactor",
+            "test",
+            "chore"
+          ],
           "description": "Custom commit types to use"
         },
         "commitMessageGenerator.includeScope": {

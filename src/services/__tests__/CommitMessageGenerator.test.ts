@@ -1,50 +1,60 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { 
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import {
   CommitMessageGeneratorImpl,
   CommitGenerationError,
   NoStagedChangesError,
+  NoChangesError,
   InvalidRepositoryError,
-  MessageValidationError
-} from '../CommitMessageGenerator';
-import { 
-  CommitMessage, 
-  GenerationOptions, 
+  MessageValidationError,
+} from "../CommitMessageGenerator";
+import {
+  CommitMessage,
+  GenerationOptions,
   CommitType,
-  ChangeAnalysis
-} from '../../interfaces/CommitMessageGenerator';
-import { GitDiff, GitService, RepoStatus, ConflictInfo } from '../../interfaces/GitService';
-import { AIService, ChangeContext } from '../../interfaces/AIService';
-import { ChangeAnalysisService } from '../../interfaces/ChangeAnalysis';
-import { UserPreferences } from '../../interfaces/Configuration';
+  ChangeAnalysis,
+} from "../../interfaces/CommitMessageGenerator";
+import {
+  GitDiff,
+  GitService,
+  RepoStatus,
+  ConflictInfo,
+} from "../../interfaces/GitService";
+import { AIService, ChangeContext } from "../../interfaces/AIService";
+import { ChangeAnalysisService } from "../../interfaces/ChangeAnalysis";
+import { UserPreferences } from "../../interfaces/Configuration";
 
 // Mock implementations
 class MockGitService implements GitService {
   private mockStagedChanges: GitDiff = {
     files: [
       {
-        path: 'src/components/Button.tsx',
-        status: 'modified',
+        path: "src/components/Button.tsx",
+        status: "modified",
         additions: 5,
         deletions: 2,
-        diff: '+  const handleClick = () => {\n+    onClick();\n+  };'
-      }
+        diff: "+  const handleClick = () => {\n+    onClick();\n+  };",
+      },
     ],
     additions: 5,
     deletions: 2,
-    summary: 'Modified Button component'
+    summary: "Modified Button component",
   };
 
   private mockRepoStatus: RepoStatus = {
     isRepository: true,
     hasChanges: true,
     hasStagedChanges: true,
-    currentBranch: 'main'
+    currentBranch: "main",
   };
 
   private mockConflictStatus: ConflictInfo = {
     hasConflicts: false,
-    conflictedFiles: []
+    conflictedFiles: [],
   };
+
+  async getAllChanges(): Promise<GitDiff> {
+    return this.mockStagedChanges;
+  }
 
   async getStagedChanges(): Promise<GitDiff> {
     return this.mockStagedChanges;
@@ -77,18 +87,22 @@ class MockGitService implements GitService {
 }
 
 class MockAIService implements AIService {
-  private mockResponse = 'feat(components): add click handler to Button component';
+  private mockResponse =
+    "feat(components): add click handler to Button component";
 
   async getCurrentModel() {
     return {
-      id: 'test-model',
-      name: 'Test Model',
-      provider: 'test',
-      isAvailable: true
+      id: "test-model",
+      name: "Test Model",
+      provider: "test",
+      isAvailable: true,
     };
   }
 
-  async generateCommitMessage(prompt: string, context: ChangeContext): Promise<string> {
+  async generateCommitMessage(
+    prompt: string,
+    context: ChangeContext
+  ): Promise<string> {
     return this.mockResponse;
   }
 
@@ -105,10 +119,10 @@ class MockAIService implements AIService {
 class MockChangeAnalysisService implements ChangeAnalysisService {
   private mockAnalysis: ChangeAnalysis = {
     commitType: CommitType.FEAT,
-    scope: 'components',
-    description: 'add click handler to Button component',
-    impactLevel: 'minor',
-    fileTypes: ['typescript', 'react']
+    scope: "components",
+    description: "add click handler to Button component",
+    impactLevel: "minor",
+    fileTypes: ["typescript", "react"],
   };
 
   analyzeChanges(diff: GitDiff): ChangeAnalysis {
@@ -124,7 +138,7 @@ class MockChangeAnalysisService implements ChangeAnalysisService {
   }
 
   categorizeFilesByType(): Record<string, string[]> {
-    return { typescript: ['Button.tsx'] };
+    return { typescript: ["Button.tsx"] };
   }
 
   assessImpactLevel(): "minor" | "moderate" | "major" {
@@ -137,7 +151,7 @@ class MockChangeAnalysisService implements ChangeAnalysisService {
   }
 }
 
-describe('CommitMessageGenerator', () => {
+describe("CommitMessageGenerator", () => {
   let generator: CommitMessageGeneratorImpl;
   let mockGitService: MockGitService;
   let mockAIService: MockAIService;
@@ -149,9 +163,9 @@ describe('CommitMessageGenerator', () => {
     mockGitService = new MockGitService();
     mockAIService = new MockAIService();
     mockChangeAnalysisService = new MockChangeAnalysisService();
-    
+
     defaultPreferences = {
-      commitStyle: 'conventional',
+      commitStyle: "conventional",
       includeBody: false,
       customTypes: [
         CommitType.FEAT,
@@ -160,19 +174,19 @@ describe('CommitMessageGenerator', () => {
         CommitType.STYLE,
         CommitType.REFACTOR,
         CommitType.TEST,
-        CommitType.CHORE
+        CommitType.CHORE,
       ],
       templates: {},
       analysisSettings: {
         enableFileTypeAnalysis: true,
         enableScopeInference: true,
-        enableImpactAnalysis: true
-      }
+        enableImpactAnalysis: true,
+      },
     };
 
     defaultOptions = {
       includeScope: true,
-      maxLength: 50
+      maxLength: 50,
     };
 
     generator = new CommitMessageGeneratorImpl(
@@ -187,25 +201,27 @@ describe('CommitMessageGenerator', () => {
     vi.clearAllMocks();
   });
 
-  describe('generateMessage', () => {
-    it('should generate a conventional commit message successfully', async () => {
+  describe("generateMessage", () => {
+    it("should generate a conventional commit message successfully", async () => {
       // Arrange
-      mockAIService.setMockResponse('feat(components): add click handler to Button');
+      mockAIService.setMockResponse(
+        "feat(components): add click handler to Button"
+      );
 
       // Act
       const result = await generator.generateMessage(defaultOptions);
 
       // Assert
       expect(result).toEqual({
-        subject: 'feat(components): add click handler to Button',
-        type: 'feat',
-        scope: 'components',
+        subject: "feat(components): add click handler to Button",
+        type: "feat",
+        scope: "components",
         body: undefined,
-        isConventional: true
+        isConventional: true,
       });
     });
 
-    it('should generate message with body when includeBody is enabled', async () => {
+    it("should generate message with body when includeBody is enabled", async () => {
       // Arrange
       const preferencesWithBody = { ...defaultPreferences, includeBody: true };
       generator = new CommitMessageGeneratorImpl(
@@ -214,133 +230,152 @@ describe('CommitMessageGenerator', () => {
         mockChangeAnalysisService,
         preferencesWithBody
       );
-      mockAIService.setMockResponse('feat(components): add click handler to Button');
+      mockAIService.setMockResponse(
+        "feat(components): add click handler to Button"
+      );
 
       // Act
       const result = await generator.generateMessage(defaultOptions);
 
       // Assert
       expect(result.body).toBeDefined();
-      expect(result.body).toContain('Affects: typescript, react files');
+      expect(result.body).toContain("Affects: typescript, react files");
     });
 
-    it('should handle custom commit type in options', async () => {
+    it("should handle custom commit type in options", async () => {
       // Arrange
-      const optionsWithType = { ...defaultOptions, commitType: 'fix' };
-      mockAIService.setMockResponse('fix(components): resolve click handler issue');
+      const optionsWithType = { ...defaultOptions, commitType: "fix" };
+      mockAIService.setMockResponse(
+        "fix(components): resolve click handler issue"
+      );
 
       // Act
       const result = await generator.generateMessage(optionsWithType);
 
       // Assert
-      expect(result.type).toBe('fix');
-      expect(result.subject).toContain('fix(components)');
+      expect(result.type).toBe("fix");
+      expect(result.subject).toContain("fix(components)");
     });
 
-    it('should respect maxLength constraint', async () => {
+    it("should respect maxLength constraint", async () => {
       // Arrange
       const shortOptions = { ...defaultOptions, maxLength: 30 };
-      mockAIService.setMockResponse('feat(components): add click handler to Button component with very long description');
+      mockAIService.setMockResponse(
+        "feat(components): add click handler to Button component with very long description"
+      );
 
       // Act & Assert
-      await expect(generator.generateMessage(shortOptions))
-        .rejects.toThrow(MessageValidationError);
+      await expect(generator.generateMessage(shortOptions)).rejects.toThrow(
+        MessageValidationError
+      );
     });
 
-    it('should handle non-conventional commit style', async () => {
+    it("should handle non-conventional commit style", async () => {
       // Arrange
-      const customPreferences = { ...defaultPreferences, commitStyle: 'custom' as const };
+      const customPreferences = {
+        ...defaultPreferences,
+        commitStyle: "custom" as const,
+      };
       generator = new CommitMessageGeneratorImpl(
         mockGitService,
         mockAIService,
         mockChangeAnalysisService,
         customPreferences
       );
-      mockAIService.setMockResponse('Add click handler to Button component');
+      mockAIService.setMockResponse("Add click handler to Button component");
 
       // Act
       const result = await generator.generateMessage(defaultOptions);
 
       // Assert
       expect(result.isConventional).toBe(false);
-      expect(result.subject).toBe('Add click handler to Button component');
+      expect(result.subject).toBe("Add click handler to Button component");
     });
 
-    it('should handle custom template', async () => {
+    it("should handle custom template", async () => {
       // Arrange
-      const optionsWithTemplate = { 
-        ...defaultOptions, 
-        customTemplate: '[{type}] {scope}: {description}' 
+      const optionsWithTemplate = {
+        ...defaultOptions,
+        customTemplate: "[{type}] {scope}: {description}",
       };
-      mockAIService.setMockResponse('feat(components): add click handler');
+      mockAIService.setMockResponse("feat(components): add click handler");
 
       // Act
       const result = await generator.generateMessage(optionsWithTemplate);
 
       // Assert
       expect(result).toBeDefined();
-      expect(result.subject).toContain('feat(components)');
+      expect(result.subject).toContain("feat(components)");
     });
   });
 
-  describe('validateStagedChanges', () => {
-    it('should return true when repository is valid and has staged changes', async () => {
+  describe("validateChanges", () => {
+    it("should return true when repository is valid and has changes", async () => {
       // Act
-      const result = await generator.validateStagedChanges();
+      const result = await generator.validateChanges();
 
       // Assert
       expect(result).toBe(true);
     });
 
-    it('should throw InvalidRepositoryError when not in a git repository', async () => {
+    it("should throw InvalidRepositoryError when not in a git repository", async () => {
       // Arrange
       mockGitService.setRepoStatus({
         isRepository: false,
         hasChanges: false,
         hasStagedChanges: false,
-        currentBranch: ''
+        currentBranch: "",
       });
 
       // Act & Assert
-      await expect(generator.validateStagedChanges())
-        .rejects.toThrow(InvalidRepositoryError);
+      await expect(generator.validateChanges()).rejects.toThrow(
+        InvalidRepositoryError
+      );
     });
 
-    it('should throw NoStagedChangesError when no staged changes exist', async () => {
+    it("should throw NoChangesError when no changes exist", async () => {
       // Arrange
       mockGitService.setRepoStatus({
         isRepository: true,
-        hasChanges: true,
+        hasChanges: false,
         hasStagedChanges: false,
-        currentBranch: 'main'
+        currentBranch: "main",
       });
 
       // Act & Assert
-      await expect(generator.validateStagedChanges())
-        .rejects.toThrow(NoStagedChangesError);
+      await expect(generator.validateChanges()).rejects.toThrow(NoChangesError);
     });
 
-    it('should throw CommitGenerationError when merge conflicts exist', async () => {
+    it("should throw CommitGenerationError when merge conflicts exist", async () => {
       // Arrange
       mockGitService.setConflictStatus({
         hasConflicts: true,
-        conflictedFiles: ['src/components/Button.tsx', 'src/utils/helper.ts']
+        conflictedFiles: ["src/components/Button.tsx", "src/utils/helper.ts"],
       });
 
       // Act & Assert
-      await expect(generator.validateStagedChanges())
-        .rejects.toThrow(CommitGenerationError);
+      await expect(generator.validateChanges()).rejects.toThrow(
+        CommitGenerationError
+      );
     });
   });
 
-  describe('analyzeChanges', () => {
-    it('should delegate to change analysis service', () => {
+  describe("analyzeChanges", () => {
+    it("should delegate to change analysis service", () => {
       // Arrange
       const mockDiff: GitDiff = {
-        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0, diff: '+test' }],
+        files: [
+          {
+            path: "test.ts",
+            status: "modified",
+            additions: 1,
+            deletions: 0,
+            diff: "+test",
+          },
+        ],
         additions: 1,
         deletions: 0,
-        summary: 'test change'
+        summary: "test change",
       };
 
       // Act
@@ -349,20 +384,22 @@ describe('CommitMessageGenerator', () => {
       // Assert
       expect(result).toEqual({
         commitType: CommitType.FEAT,
-        scope: 'components',
-        description: 'add click handler to Button component',
-        impactLevel: 'minor',
-        fileTypes: ['typescript', 'react']
+        scope: "components",
+        description: "add click handler to Button component",
+        impactLevel: "minor",
+        fileTypes: ["typescript", "react"],
       });
     });
   });
 
-  describe('error handling', () => {
-    it('should wrap unknown errors in CommitGenerationError', async () => {
+  describe("error handling", () => {
+    it("should wrap unknown errors in CommitGenerationError", async () => {
       // Arrange
       const errorGitService = {
         ...mockGitService,
-        getStagedChanges: vi.fn().mockRejectedValue(new Error('Git command failed'))
+        getStagedChanges: vi
+          .fn()
+          .mockRejectedValue(new Error("Git command failed")),
       } as unknown as GitService;
 
       generator = new CommitMessageGeneratorImpl(
@@ -373,29 +410,31 @@ describe('CommitMessageGenerator', () => {
       );
 
       // Act & Assert
-      await expect(generator.generateMessage(defaultOptions))
-        .rejects.toThrow(CommitGenerationError);
+      await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
+        CommitGenerationError
+      );
     });
 
-    it('should preserve specific error types', async () => {
+    it("should preserve specific error types", async () => {
       // Arrange
       mockGitService.setRepoStatus({
         isRepository: true,
         hasChanges: false,
         hasStagedChanges: false,
-        currentBranch: 'main'
+        currentBranch: "main",
       });
 
       // Act & Assert
-      await expect(generator.generateMessage(defaultOptions))
-        .rejects.toThrow(NoStagedChangesError);
+      await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
+        NoStagedChangesError
+      );
     });
   });
 
-  describe('message validation', () => {
-    it('should validate conventional commit format', async () => {
+  describe("message validation", () => {
+    it("should validate conventional commit format", async () => {
       // Arrange
-      mockAIService.setMockResponse('invalid format message');
+      mockAIService.setMockResponse("invalid format message");
 
       // Act
       const result = await generator.generateMessage(defaultOptions);
@@ -404,73 +443,95 @@ describe('CommitMessageGenerator', () => {
       expect(result.isConventional).toBe(false);
     });
 
-    it('should reject empty commit messages', async () => {
+    it("should reject empty commit messages", async () => {
       // Arrange
-      mockAIService.setMockResponse('   ');
+      mockAIService.setMockResponse("   ");
 
       // Act & Assert
-      await expect(generator.generateMessage(defaultOptions))
-        .rejects.toThrow(MessageValidationError);
+      await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
+        MessageValidationError
+      );
     });
 
-    it('should validate commit type against allowed types', async () => {
+    it("should validate commit type against allowed types", async () => {
       // Arrange
-      mockAIService.setMockResponse('invalid(scope): test message');
+      mockAIService.setMockResponse("invalid(scope): test message");
 
       // Act & Assert
-      await expect(generator.generateMessage(defaultOptions))
-        .rejects.toThrow(MessageValidationError);
+      await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
+        MessageValidationError
+      );
     });
   });
 
-  describe('integration scenarios', () => {
-    it('should handle multiple file changes', async () => {
+  describe("integration scenarios", () => {
+    it("should handle multiple file changes", async () => {
       // Arrange
       const multiFileDiff: GitDiff = {
         files: [
-          { path: 'src/components/Button.tsx', status: 'modified', additions: 5, deletions: 2, diff: '+handler' },
-          { path: 'src/components/Input.tsx', status: 'added', additions: 20, deletions: 0, diff: '+new component' },
-          { path: 'README.md', status: 'modified', additions: 3, deletions: 1, diff: '+documentation' }
+          {
+            path: "src/components/Button.tsx",
+            status: "modified",
+            additions: 5,
+            deletions: 2,
+            diff: "+handler",
+          },
+          {
+            path: "src/components/Input.tsx",
+            status: "added",
+            additions: 20,
+            deletions: 0,
+            diff: "+new component",
+          },
+          {
+            path: "README.md",
+            status: "modified",
+            additions: 3,
+            deletions: 1,
+            diff: "+documentation",
+          },
         ],
         additions: 28,
         deletions: 3,
-        summary: 'Multiple component changes'
+        summary: "Multiple component changes",
       };
-      
+
       const extendedOptions = { ...defaultOptions, maxLength: 60 };
-      
+
       mockGitService.setStagedChanges(multiFileDiff);
       mockChangeAnalysisService.setMockAnalysis({
         commitType: CommitType.FEAT,
-        scope: 'components',
-        description: 'add Input component and update Button',
-        impactLevel: 'moderate',
-        fileTypes: ['typescript', 'react', 'markdown']
+        scope: "components",
+        description: "add Input component and update Button",
+        impactLevel: "moderate",
+        fileTypes: ["typescript", "react", "markdown"],
       });
-      mockAIService.setMockResponse('feat(components): add Input component and update Button');
+      mockAIService.setMockResponse(
+        "feat(components): add Input component and update Button"
+      );
 
       // Act
       const result = await generator.generateMessage(extendedOptions);
 
       // Assert
-      expect(result.type).toBe('feat');
-      expect(result.scope).toBe('components');
-      expect(result.subject).toContain('Input component');
+      expect(result.type).toBe("feat");
+      expect(result.scope).toBe("components");
+      expect(result.subject).toContain("Input component");
     });
 
-    it('should handle large impact changes', async () => {
+    it("should handle large impact changes", async () => {
       // Arrange
       const largeDiff: GitDiff = {
         files: Array.from({ length: 15 }, (_, i) => ({
           path: `src/file${i}.ts`,
-          status: 'modified' as const,
+          status: "modified" as const,
           additions: 10,
           deletions: 5,
-          diff: '+major changes'
+          diff: "+major changes",
         })),
         additions: 150,
         deletions: 75,
-        summary: 'Major refactoring'
+        summary: "Major refactoring",
       };
 
       const extendedOptions = { ...defaultOptions, maxLength: 60 };
@@ -478,60 +539,76 @@ describe('CommitMessageGenerator', () => {
       mockGitService.setStagedChanges(largeDiff);
       mockChangeAnalysisService.setMockAnalysis({
         commitType: CommitType.REFACTOR,
-        scope: 'core',
-        description: 'restructure application architecture',
-        impactLevel: 'major',
-        fileTypes: ['typescript']
+        scope: "core",
+        description: "restructure application architecture",
+        impactLevel: "major",
+        fileTypes: ["typescript"],
       });
-      mockAIService.setMockResponse('refactor(core): restructure application architecture');
+      mockAIService.setMockResponse(
+        "refactor(core): restructure application architecture"
+      );
 
       // Act
       const result = await generator.generateMessage(extendedOptions);
 
       // Assert
-      expect(result.type).toBe('refactor');
-      expect(result.subject).toContain('restructure');
+      expect(result.type).toBe("refactor");
+      expect(result.subject).toContain("restructure");
     });
 
-    it('should handle documentation-only changes', async () => {
+    it("should handle documentation-only changes", async () => {
       // Arrange
       const docsDiff: GitDiff = {
         files: [
-          { path: 'README.md', status: 'modified', additions: 10, deletions: 2, diff: '+documentation' },
-          { path: 'docs/api.md', status: 'added', additions: 50, deletions: 0, diff: '+new docs' }
+          {
+            path: "README.md",
+            status: "modified",
+            additions: 10,
+            deletions: 2,
+            diff: "+documentation",
+          },
+          {
+            path: "docs/api.md",
+            status: "added",
+            additions: 50,
+            deletions: 0,
+            diff: "+new docs",
+          },
         ],
         additions: 60,
         deletions: 2,
-        summary: 'Documentation updates'
+        summary: "Documentation updates",
       };
 
       mockGitService.setStagedChanges(docsDiff);
       mockChangeAnalysisService.setMockAnalysis({
         commitType: CommitType.DOCS,
         scope: undefined,
-        description: 'update README and add API documentation',
-        impactLevel: 'minor',
-        fileTypes: ['markdown']
+        description: "update README and add API documentation",
+        impactLevel: "minor",
+        fileTypes: ["markdown"],
       });
-      mockAIService.setMockResponse('docs: update README and add API documentation');
+      mockAIService.setMockResponse(
+        "docs: update README and add API documentation"
+      );
 
       // Act
       const result = await generator.generateMessage(defaultOptions);
 
       // Assert
-      expect(result.type).toBe('docs');
+      expect(result.type).toBe("docs");
       expect(result.scope).toBeUndefined();
-      expect(result.subject).toContain('README');
+      expect(result.subject).toContain("README");
     });
   });
 
-  describe('preferences management', () => {
-    it('should update preferences correctly', () => {
+  describe("preferences management", () => {
+    it("should update preferences correctly", () => {
       // Arrange
       const newPreferences: UserPreferences = {
         ...defaultPreferences,
-        commitStyle: 'custom',
-        includeBody: true
+        commitStyle: "custom",
+        includeBody: true,
       };
 
       // Act
@@ -539,11 +616,11 @@ describe('CommitMessageGenerator', () => {
       const result = generator.getPreferences();
 
       // Assert
-      expect(result.commitStyle).toBe('custom');
+      expect(result.commitStyle).toBe("custom");
       expect(result.includeBody).toBe(true);
     });
 
-    it('should return current preferences', () => {
+    it("should return current preferences", () => {
       // Act
       const result = generator.getPreferences();
 

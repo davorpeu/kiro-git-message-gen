@@ -42,6 +42,7 @@ export interface ChangeAnalysis {
 
 export interface CommitMessageGenerator {
   generateMessage(options: GenerationOptions): Promise<CommitMessage>;
+  validateChanges(): Promise<boolean>;
   validateStagedChanges(): Promise<boolean>;
-  analyzeChanges(diff: import('./GitService').GitDiff): ChangeAnalysis;
+  analyzeChanges(diff: import("./GitService").GitDiff): ChangeAnalysis;
 }
