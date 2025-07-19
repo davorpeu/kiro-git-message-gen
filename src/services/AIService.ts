@@ -161,11 +161,20 @@ export class KiroAIService implements AIService {
     prompt += `Files changed: ${diff.files.length}\n`;
     prompt += `Additions: ${diff.additions}, Deletions: ${diff.deletions}\n`;
 
-    // Add file changes
-    prompt += "\nChanged files:\n";
+    // Add file changes with actual diff content
+    prompt += "\nChanged files with actual changes:\n";
     diff.files.forEach((file) => {
-      prompt += `- ${file.path} (${file.status}): +${file.additions} -${file.deletions}\n`;
+      prompt += `\n📁 ${file.path} (${file.status}): +${file.additions} -${file.deletions}\n`;
+
+      // Add actual diff content (truncated for AI context)
+      if (file.diff && file.diff.trim()) {
+        const truncatedDiff = this.truncateDiff(file.diff, 300);
+        prompt += `Changes:\n${truncatedDiff}\n`;
+      }
     });
+
+    // Add analysis hint with actual content context
+    prompt += `\nAnalysis: Look at the actual code changes above to understand what was implemented, fixed, or modified. Focus on the purpose and impact of the changes, not just file names.`;
 
     // Add preferences
     if (preferences.commitStyle === "conventional") {
@@ -191,9 +200,65 @@ export class KiroAIService implements AIService {
    * Get default prompt for commit message generation
    */
   private getDefaultPrompt(): string {
-    return `Generate a git commit message based on the following changes. 
-The message should be clear, concise, and follow best practices.
-Focus on what was changed and why, not how.`;
+    return `You are an expert developer creating a git commit message. Analyze the file changes and generate a single, concise commit message that accurately describes the main purpose of these changes.
+
+Rules:
+- Use conventional commit format: type(scope): description
+- Focus on the PRIMARY change, not every small detail
+- Choose the most appropriate commit type based on the main change
+- Use imperative mood (add, fix, update, implement)
+- Be specific but concise
+- If multiple files changed, focus on the main purpose/feature being implemented`;
+  }
+
+  /**
+   * Truncate diff content to keep AI prompt manageable
+   */
+  private truncateDiff(diff: string, maxLength: number): string {
+    if (!diff || diff.length <= maxLength) {
+      return diff;
+    }
+
+    // Split into lines and keep the most important ones
+    const lines = diff.split("\n");
+    const importantLines: string[] = [];
+    let currentLength = 0;
+
+    // Prioritize lines that show actual changes (+ and -)
+    const changeLines = lines.filter(
+      (line) =>
+        line.startsWith("+") || line.startsWith("-") || line.startsWith("@@")
+    );
+
+    for (const line of changeLines) {
+      if (currentLength + line.length > maxLength) {
+        break;
+      }
+      importantLines.push(line);
+      currentLength += line.length + 1; // +1 for newline
+    }
+
+    // If we have room, add some context lines
+    if (currentLength < maxLength * 0.8) {
+      const contextLines = lines.filter(
+        (line) =>
+          !line.startsWith("+") &&
+          !line.startsWith("-") &&
+          !line.startsWith("@@") &&
+          line.trim()
+      );
+
+      for (const line of contextLines) {
+        if (currentLength + line.length > maxLength) {
+          break;
+        }
+        importantLines.push(line);
+        currentLength += line.length + 1;
+      }
+    }
+
+    const result = importantLines.join("\n");
+    return result.length < diff.length ? result + "\n... (truncated)" : result;
   }
 
   /**
@@ -253,21 +318,27 @@ Focus on what was changed and why, not how.`;
    */
   private generateFallbackResponse(prompt: string): string {
     // Extract file information from the prompt
-    const fileMatches = prompt.match(/- ([^:]+) \((\w+)\)/g) || [];
+    const fileMatches = prompt.match(/📁 ([^:]+) \((\w+)\)/g) || [];
     const files = fileMatches
       .map((match) => {
-        const parts = match.match(/- ([^:]+) \((\w+)\)/);
+        const parts = match.match(/📁 ([^:]+) \((\w+)\)/);
         return parts ? { path: parts[1], status: parts[2] } : null;
       })
       .filter(Boolean);
+
+    // Analyze actual diff content for better understanding
+    const diffContent = this.extractDiffContent(prompt);
+    const changeContext = this.analyzeDiffContent(diffContent);
 
     // Analyze file patterns to determine commit type and scope
     let commitType = "feat";
     let scope = "";
 
-    // Determine commit type based on file patterns
+    // Determine commit type based on actual changes and file patterns
+    // Priority: test files > docs > config > new features > fixes > refactor
     if (
-      files.some((f) => f?.path.includes("test") || f?.path.includes("spec"))
+      files.some((f) => f?.path.includes("test") || f?.path.includes("spec")) &&
+      changeContext.hasTestChanges
     ) {
       commitType = "test";
     } else if (
@@ -275,15 +346,28 @@ Focus on what was changed and why, not how.`;
     ) {
       commitType = "docs";
     } else if (
+      changeContext.hasConfigChanges ||
       files.some(
         (f) => f?.path.includes("package.json") || f?.path.includes("config")
       )
     ) {
       commitType = "chore";
-    } else if (files.some((f) => f?.status === "added")) {
+    } else if (
+      changeContext.hasNewFunctions ||
+      changeContext.hasClassChanges ||
+      files.some((f) => f?.status === "added")
+    ) {
+      // New functions or classes are features, even if they're validation functions
       commitType = "feat";
-    } else if (files.some((f) => f?.status === "modified")) {
+    } else if (
+      changeContext.hasNullChecks ||
+      (changeContext.mainChangeType === "function" &&
+        files.some((f) => f?.status === "modified"))
+    ) {
+      // If adding null checks or modifying existing functions, it's likely a fix
       commitType = "fix";
+    } else if (files.some((f) => f?.status === "modified")) {
+      commitType = "refactor";
     }
 
     // Determine scope based on file paths
@@ -310,17 +394,218 @@ Focus on what was changed and why, not how.`;
       description =
         file?.status === "added" ? `add ${fileName}` : `update ${fileName}`;
     } else if (files.length > 1) {
-      description = `update ${files.length} files`;
-      if (scope) {
-        description = `update ${scope} components`;
+      // Find the file with the most changes to determine primary purpose
+      // Focus on the most important file based on path
+      const primaryFile =
+        files.find(
+          (f) => f?.path.includes("src/") && !f?.path.includes("test")
+        ) || files[0];
+
+      if (primaryFile) {
+        const fileName = primaryFile.path.split("/").pop() || primaryFile.path;
+        description =
+          primaryFile.status === "added"
+            ? `add ${fileName} and related changes`
+            : `update ${fileName} and related files`;
+      } else if (scope) {
+        description = `update ${scope} implementation`;
+      } else {
+        description = `update multiple components`;
       }
     } else {
       description = "implement changes";
     }
 
+    // Use change context to improve description with more specificity
+    if (
+      changeContext.hasNewFunctions &&
+      changeContext.newFunctions.length > 0
+    ) {
+      const functionName = changeContext.newFunctions[0];
+
+      // Make description more specific based on function name
+      if (functionName.toLowerCase().includes("validate")) {
+        description = `add ${functionName} validation function`;
+      } else if (
+        functionName.toLowerCase().includes("test") ||
+        functionName.toLowerCase().includes("spec")
+      ) {
+        description = `add ${functionName} test function`;
+      } else if (
+        functionName.toLowerCase().includes("handle") ||
+        functionName.toLowerCase().includes("click")
+      ) {
+        description = `add ${functionName} handler`;
+      } else if (
+        functionName.toLowerCase().includes("get") ||
+        functionName.toLowerCase().includes("fetch")
+      ) {
+        description = `add ${functionName} getter function`;
+      } else if (
+        functionName.toLowerCase().includes("set") ||
+        functionName.toLowerCase().includes("update")
+      ) {
+        description = `add ${functionName} setter function`;
+      } else if (changeContext.newFunctions.length === 1) {
+        description = `add ${functionName} function`;
+      } else {
+        // Multiple functions - be more descriptive
+        const functionTypes = changeContext.newFunctions.map((fn) => {
+          if (fn.toLowerCase().includes("validate")) return "validation";
+          if (fn.toLowerCase().includes("test")) return "test";
+          if (fn.toLowerCase().includes("handle")) return "handler";
+          return "utility";
+        });
+        const uniqueTypes = [...new Set(functionTypes)];
+        description =
+          uniqueTypes.length === 1
+            ? `add ${uniqueTypes[0]} functions`
+            : `add ${changeContext.newFunctions.length} utility functions`;
+      }
+    } else if (changeContext.hasNullChecks) {
+      description = `add null safety checks`;
+    } else if (changeContext.hasValidation) {
+      description = `add validation logic`;
+    } else if (changeContext.hasImports) {
+      description = `update imports and dependencies`;
+    } else if (changeContext.hasConfigChanges) {
+      description = `update configuration`;
+    } else if (changeContext.hasTestChanges) {
+      description = `add test coverage`;
+    }
+
     // Format as conventional commit
     const scopeStr = scope ? `(${scope})` : "";
     return `${commitType}${scopeStr}: ${description}`;
+  }
+
+  /**
+   * Extract diff content from the prompt
+   */
+  private extractDiffContent(prompt: string): string {
+    const changesSections = prompt.split("Changes:\n");
+    if (changesSections.length < 2) return "";
+
+    return changesSections.slice(1).join("\n");
+  }
+
+  /**
+   * Analyze diff content to understand what changed
+   */
+  private analyzeDiffContent(diffContent: string): {
+    hasNewFunctions: boolean;
+    newFunctions: string[];
+    hasImports: boolean;
+    hasConfigChanges: boolean;
+    hasTestChanges: boolean;
+    hasClassChanges: boolean;
+    hasNullChecks: boolean;
+    hasValidation: boolean;
+    mainChangeType: string;
+  } {
+    const lines = diffContent.split("\n");
+    const addedLines = lines.filter((line) => line.startsWith("+"));
+
+    // Look for new functions
+    const functionMatches = addedLines
+      .map((line) =>
+        line.match(
+          /\+.*(?:function|const|let|var)\s+(\w+)|class\s+(\w+)|async\s+(\w+)/
+        )
+      )
+      .filter(Boolean)
+      .map((match) => match![1] || match![2] || match![3])
+      .filter(Boolean);
+
+    // Look for imports
+    const hasImports = addedLines.some(
+      (line) =>
+        line.includes("import") ||
+        line.includes("require") ||
+        line.includes("from")
+    );
+
+    // Look for config changes
+    const hasConfigChanges = addedLines.some(
+      (line) => line.includes('"') && (line.includes(":") || line.includes("="))
+    );
+
+    // Look for test changes
+    const hasTestChanges = addedLines.some(
+      (line) =>
+        line.includes("test(") ||
+        line.includes("it(") ||
+        line.includes("describe(") ||
+        line.includes("expect(") ||
+        line.includes("assert")
+    );
+
+    // Look for class changes
+    const hasClassChanges = addedLines.some(
+      (line) =>
+        line.includes("class ") ||
+        line.includes("interface ") ||
+        line.includes("type ")
+    );
+
+    // Look for null checks and validation
+    const hasNullChecks = addedLines.some(
+      (line) =>
+        line.includes("if (") &&
+        (line.includes("null") ||
+          line.includes("undefined") ||
+          line.includes("!"))
+    );
+
+    const hasValidation = addedLines.some(
+      (line) =>
+        line.includes("validate") ||
+        line.includes("check") ||
+        line.includes("verify") ||
+        line.includes("length") ||
+        (line.includes("test(") && line.includes("/"))
+    );
+
+    return {
+      hasNewFunctions: functionMatches.length > 0,
+      newFunctions: functionMatches,
+      hasImports,
+      hasConfigChanges,
+      hasTestChanges,
+      hasClassChanges,
+      hasNullChecks,
+      hasValidation,
+      mainChangeType: this.determineMainChangeType(addedLines),
+    };
+  }
+
+  /**
+   * Determine the main type of change based on added lines
+   */
+  private determineMainChangeType(addedLines: string[]): string {
+    const patterns = {
+      function: /(?:function|const|let|var)\s+\w+.*=/,
+      class: /class\s+\w+/,
+      interface: /interface\s+\w+/,
+      import: /import.*from/,
+      config: /"[^"]+"\s*:/,
+      test: /(?:test|it|describe)\s*\(/,
+      comment: /\/\/|\/\*/,
+    };
+
+    const counts: Record<string, number> = {};
+
+    addedLines.forEach((line) => {
+      Object.entries(patterns).forEach(([type, pattern]) => {
+        if (pattern.test(line)) {
+          counts[type] = (counts[type] || 0) + 1;
+        }
+      });
+    });
+
+    // Return the most common change type
+    const sortedTypes = Object.entries(counts).sort(([, a], [, b]) => b - a);
+    return sortedTypes.length > 0 ? sortedTypes[0][0] : "general";
   }
 
   /**

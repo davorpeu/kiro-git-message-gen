@@ -83,7 +83,7 @@
         },
         "commitMessageGenerator.maxSubjectLength": {
           "type": "number",
-          "default": 50,
+          "default": 72,
           "description": "Maximum length for commit subject line"
         }
       }

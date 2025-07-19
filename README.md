@@ -58,7 +58,7 @@ Configure the extension through Kiro IDE settings:
     "chore"
   ],
   "commitMessageGenerator.includeScope": true,
-  "commitMessageGenerator.maxSubjectLength": 50
+  "commitMessageGenerator.maxSubjectLength": 72
 }
 ```
 

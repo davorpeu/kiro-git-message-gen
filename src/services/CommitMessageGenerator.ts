@@ -347,10 +347,12 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
     message: CommitMessage,
     options: GenerationOptions
   ): void {
-    // Check subject line length
+    // Check subject line length and truncate if needed
     if (message.subject.length > options.maxLength) {
-      throw new MessageValidationError(
-        `Commit subject line too long: ${message.subject.length} > ${options.maxLength} characters`
+      // Intelligently truncate the message
+      message.subject = this.truncateMessage(
+        message.subject,
+        options.maxLength
       );
     }
 
@@ -365,6 +367,27 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
       message.isConventional
     ) {
       this.validateConventionalFormat(message);
+    }
+  }
+
+  /**
+   * Intelligently truncate a commit message to fit within length limits
+   */
+  private truncateMessage(message: string, maxLength: number): string {
+    if (message.length <= maxLength) {
+      return message;
+    }
+
+    // Try to truncate at word boundaries
+    const truncated = message.substring(0, maxLength - 3);
+    const lastSpace = truncated.lastIndexOf(" ");
+
+    if (lastSpace > maxLength * 0.7) {
+      // If we can truncate at a word boundary without losing too much
+      return truncated.substring(0, lastSpace) + "...";
+    } else {
+      // Otherwise, hard truncate
+      return truncated + "...";
     }
   }
 

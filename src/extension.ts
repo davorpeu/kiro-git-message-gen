@@ -73,7 +73,7 @@ async function generateCommitMessage(): Promise<void> {
         );
         const options = {
           includeScope: config.get<boolean>("includeScope", true),
-          maxLength: config.get<number>("maxSubjectLength", 72), // Increased for better messages
+          maxLength: config.get<number>("maxSubjectLength", 72),
         };
 
         // Generate the commit message
