@@ -3,21 +3,23 @@ import { CommitMessageGeneratorImpl } from "./services/CommitMessageGenerator";
 import { GitServiceImpl } from "./services/GitService";
 import { KiroAIService } from "./services/AIService";
 import { ChangeAnalysisServiceImpl } from "./services/ChangeAnalysisService";
+import { ConfigurationManager } from "./services/ConfigurationManager";
 import { UserPreferences } from "./interfaces/Configuration";
 import { CommitType } from "./interfaces/CommitMessageGenerator";
 
 // Global service instances
 let commitMessageGenerator: CommitMessageGeneratorImpl;
+let configurationManager: ConfigurationManager;
 
 /**
  * Extension activation function
  * Called when the extension is activated
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log("Kiro Git Commit Message Generator extension is now active");
 
   // Initialize services
-  initializeServices(context);
+  await initializeServices(context);
 
   // Register the main command for generating commit messages
   const generateCommand = vscode.commands.registerCommand(
@@ -69,13 +71,11 @@ async function generateCommitMessage(): Promise<void> {
         cancellable: false,
       },
       async (progress) => {
-        // Get user preferences from VS Code configuration
-        const config = vscode.workspace.getConfiguration(
-          "commitMessageGenerator"
-        );
+        // Get user preferences from ConfigurationManager
+        const preferences = await configurationManager.getUserPreferences();
         const options = {
-          includeScope: config.get<boolean>("includeScope", true),
-          maxLength: config.get<number>("maxSubjectLength", 72),
+          includeScope: preferences.analysisSettings.enableScopeInference,
+          maxLength: 50, // Use default from ConfigurationManager
         };
 
         // Generate the commit message
@@ -203,7 +203,9 @@ async function editCommitMessage(initialMessage: string): Promise<void> {
 /**
  * Initialize extension services
  */
-function initializeServices(context: vscode.ExtensionContext): void {
+async function initializeServices(
+  context: vscode.ExtensionContext
+): Promise<void> {
   try {
     // Get workspace root path
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -211,31 +213,11 @@ function initializeServices(context: vscode.ExtensionContext): void {
       console.warn("No workspace folder found, some features may not work");
     }
 
-    // Get user preferences from VS Code configuration
-    const config = vscode.workspace.getConfiguration("commitMessageGenerator");
-    const userPreferences: UserPreferences = {
-      commitStyle: config.get<boolean>("enableConventionalCommits", true)
-        ? "conventional"
-        : "custom",
-      includeBody: false, // Can be made configurable later
-      customTypes: config
-        .get<string[]>("customCommitTypes", [
-          "feat",
-          "fix",
-          "docs",
-          "style",
-          "refactor",
-          "test",
-          "chore",
-        ])
-        .map((type) => type as CommitType),
-      templates: {}, // Can be expanded later
-      analysisSettings: {
-        enableFileTypeAnalysis: true,
-        enableScopeInference: config.get<boolean>("includeScope", true),
-        enableImpactAnalysis: true,
-      },
-    };
+    // Initialize configuration manager
+    configurationManager = new ConfigurationManager();
+
+    // Get user preferences from ConfigurationManager
+    const userPreferences = await configurationManager.getUserPreferences();
 
     // Initialize services
     const gitService = new GitServiceImpl(workspaceRoot || process.cwd());

@@ -58,13 +58,38 @@
     "configuration": {
       "title": "Kiro Git Commit Generator",
       "properties": {
-        "commitMessageGenerator.enableConventionalCommits": {
+        "commitMessageGenerator.commitStyle": {
+          "type": "string",
+          "enum": [
+            "conventional",
+            "custom"
+          ],
+          "default": "conventional",
+          "description": "Style of commit messages to generate",
+          "enumDescriptions": [
+            "Use conventional commit format (type(scope): description)",
+            "Use custom commit message format"
+          ]
+        },
+        "commitMessageGenerator.includeBody": {
           "type": "boolean",
-          "default": true,
-          "description": "Enable conventional commit format"
+          "default": false,
+          "description": "Include body in generated commit messages"
         },
         "commitMessageGenerator.customCommitTypes": {
           "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "feat",
+              "fix",
+              "docs",
+              "style",
+              "refactor",
+              "test",
+              "chore"
+            ]
+          },
           "default": [
             "feat",
             "fix",
@@ -74,17 +99,59 @@
             "test",
             "chore"
           ],
-          "description": "Custom commit types to use"
+          "description": "Custom commit types to use for message generation",
+          "uniqueItems": true
         },
-        "commitMessageGenerator.includeScope": {
-          "type": "boolean",
-          "default": true,
-          "description": "Include scope in commit messages"
+        "commitMessageGenerator.customTemplates": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {
+            "conventional": "{type}({scope}): {description}",
+            "simple": "{type}: {description}",
+            "detailed": "{type}({scope}): {description}\n\n{body}"
+          },
+          "description": "Custom commit message templates. Use {type}, {scope}, {description}, and {body} as placeholders."
+        },
+        "commitMessageGenerator.analysisFeatures": {
+          "type": "object",
+          "properties": {
+            "fileTypeAnalysis": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable analysis of file types to improve commit type inference"
+            },
+            "scopeInference": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable automatic scope inference from file paths and project structure"
+            },
+            "changeImpactAnalysis": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable analysis of change impact to improve commit message quality"
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "fileTypeAnalysis": true,
+            "scopeInference": true,
+            "changeImpactAnalysis": true
+          },
+          "description": "Configuration for various analysis features"
         },
         "commitMessageGenerator.maxSubjectLength": {
-          "type": "number",
-          "default": 72,
-          "description": "Maximum length for commit subject line"
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 100,
+          "default": 50,
+          "description": "Maximum length for commit message subject line"
+        },
+        "commitMessageGenerator.enableConventionalCommits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable conventional commit format validation and suggestions"
         }
       }
     }
