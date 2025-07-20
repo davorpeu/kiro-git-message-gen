@@ -9,44 +9,13 @@ import { UserPreferences } from "../interfaces/Configuration";
 import { GitService } from "../interfaces/GitService";
 import { AIService, ChangeContext } from "../interfaces/AIService";
 import { ChangeAnalysisService } from "../interfaces/ChangeAnalysis";
-
-/**
- * Error types for commit message generation
- */
-export class CommitGenerationError extends Error {
-  constructor(message: string, public readonly code: string) {
-    super(message);
-    this.name = "CommitGenerationError";
-  }
-}
-
-export class NoStagedChangesError extends CommitGenerationError {
-  constructor(
-    message: string = "No staged changes found for commit message generation"
-  ) {
-    super(message, "NO_STAGED_CHANGES");
-  }
-}
-
-export class NoChangesError extends CommitGenerationError {
-  constructor(
-    message: string = "No changes found for commit message generation"
-  ) {
-    super(message, "NO_CHANGES");
-  }
-}
-
-export class InvalidRepositoryError extends CommitGenerationError {
-  constructor(message: string = "Not in a valid git repository") {
-    super(message, "INVALID_REPOSITORY");
-  }
-}
-
-export class MessageValidationError extends CommitGenerationError {
-  constructor(message: string = "Generated commit message failed validation") {
-    super(message, "MESSAGE_VALIDATION_FAILED");
-  }
-}
+import {
+  ErrorHandler,
+  GitError,
+  AIError,
+  ValidationError,
+} from "./ErrorHandler";
+import { FallbackCommitGenerator } from "./FallbackCommitGenerator";
 
 /**
  * Core commit message generator that combines all services
@@ -56,6 +25,8 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
   private aiService: AIService;
   private changeAnalysisService: ChangeAnalysisService;
   private userPreferences: UserPreferences;
+  private errorHandler: ErrorHandler;
+  private fallbackGenerator: FallbackCommitGenerator;
 
   constructor(
     gitService: GitService,
@@ -67,6 +38,8 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
     this.aiService = aiService;
     this.changeAnalysisService = changeAnalysisService;
     this.userPreferences = userPreferences;
+    this.errorHandler = ErrorHandler.getInstance();
+    this.fallbackGenerator = new FallbackCommitGenerator(userPreferences);
   }
 
   /**
@@ -80,41 +53,22 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
       // Get all changes from git (staged + unstaged)
       const diff = await this.gitService.getAllChanges();
 
-      // Analyze the changes to understand what was modified
-      const analysis = this.analyzeChanges(diff);
-
-      // Build context for AI generation
-      const context = this.buildChangeContext(diff, analysis);
-
-      // Generate the commit message using AI
-      const generatedMessage = await this.generateWithAI(
-        context,
-        options,
-        analysis
-      );
-
-      // Format and validate the final message
-      const commitMessage = this.formatCommitMessage(
-        generatedMessage,
-        analysis,
-        options
-      );
-
-      // Validate the generated message
-      this.validateCommitMessage(commitMessage, options);
-
-      return commitMessage;
+      // Try AI generation first, fall back to template-based if it fails
+      return await this.generateWithFallback(diff, options);
     } catch (error) {
-      if (error instanceof CommitGenerationError) {
+      // Handle different types of errors appropriately
+      if (error instanceof GitError) {
+        try {
+          const errorResponse = await this.errorHandler.handleGitError(error);
+          await this.errorHandler.showErrorToUser(errorResponse);
+        } catch (handlerError) {
+          // If error handler fails, log it but still throw the original error
+          console.error("Error handler failed:", handlerError);
+        }
         throw error;
       }
 
-      throw new CommitGenerationError(
-        `Failed to generate commit message: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-        "GENERATION_FAILED"
-      );
+      throw error;
     }
   }
 
@@ -125,23 +79,26 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
     // Check if we're in a valid git repository
     const isValidRepo = await this.gitService.isValidRepository();
     if (!isValidRepo) {
-      throw new InvalidRepositoryError();
+      throw new GitError("Not in a valid git repository", "NOT_A_REPOSITORY");
     }
 
     // Check repository status
     const status = await this.gitService.getRepositoryStatus();
     if (!status.hasChanges) {
-      throw new NoChangesError();
+      throw new GitError(
+        "No changes found for commit message generation",
+        "NO_CHANGES"
+      );
     }
 
     // Check for merge conflicts
     const conflictStatus = await this.gitService.getConflictStatus();
     if (conflictStatus.hasConflicts) {
-      throw new CommitGenerationError(
+      throw new GitError(
         `Cannot generate commit message while merge conflicts exist in: ${conflictStatus.conflictedFiles.join(
           ", "
         )}`,
-        "MERGE_CONFLICTS_EXIST"
+        "MERGE_CONFLICTS"
       );
     }
 
@@ -155,23 +112,26 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
     // Check if we're in a valid git repository
     const isValidRepo = await this.gitService.isValidRepository();
     if (!isValidRepo) {
-      throw new InvalidRepositoryError();
+      throw new GitError("Not in a valid git repository", "NOT_A_REPOSITORY");
     }
 
     // Check repository status
     const status = await this.gitService.getRepositoryStatus();
     if (!status.hasStagedChanges) {
-      throw new NoStagedChangesError();
+      throw new GitError(
+        "No staged changes found for commit message generation",
+        "NO_STAGED_CHANGES"
+      );
     }
 
     // Check for merge conflicts
     const conflictStatus = await this.gitService.getConflictStatus();
     if (conflictStatus.hasConflicts) {
-      throw new CommitGenerationError(
+      throw new GitError(
         `Cannot generate commit message while merge conflicts exist in: ${conflictStatus.conflictedFiles.join(
           ", "
         )}`,
-        "MERGE_CONFLICTS_EXIST"
+        "MERGE_CONFLICTS"
       );
     }
 
@@ -205,13 +165,46 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
   }
 
   /**
+   * Generate commit message with AI and fallback support
+   */
+  private async generateWithFallback(
+    diff: GitDiff,
+    options: GenerationOptions
+  ): Promise<CommitMessage> {
+    try {
+      // Try AI generation first
+      return await this.generateWithAI(diff, options);
+    } catch (error) {
+      // Handle AI errors and fall back to template-based generation
+      if (error instanceof AIError) {
+        const errorResponse = await this.errorHandler.handleAIError(error);
+
+        // Show warning to user but continue with fallback
+        if (errorResponse.logLevel === "error") {
+          await this.errorHandler.showErrorToUser(errorResponse);
+        }
+
+        // Use fallback generation
+        return this.generateWithTemplate(diff, options);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Generate commit message using AI service
    */
   private async generateWithAI(
-    context: ChangeContext,
-    options: GenerationOptions,
-    analysis: ChangeAnalysis
-  ): Promise<string> {
+    diff: GitDiff,
+    options: GenerationOptions
+  ): Promise<CommitMessage> {
+    // Analyze the changes to understand what was modified
+    const analysis = this.analyzeChanges(diff);
+
+    // Build context for AI generation
+    const context = this.buildChangeContext(diff, analysis);
+
     // Build a comprehensive prompt for the AI
     const prompt = this.buildAIPrompt(context, options, analysis);
 
@@ -221,7 +214,65 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
       context
     );
 
-    return generatedMessage;
+    // Format and validate the final message
+    const commitMessage = this.formatCommitMessage(
+      generatedMessage,
+      analysis,
+      options
+    );
+
+    // Validate the generated message
+    this.validateCommitMessage(commitMessage, options);
+
+    return commitMessage;
+  }
+
+  /**
+   * Generate commit message using template-based fallback
+   */
+  private generateWithTemplate(
+    diff: GitDiff,
+    options: GenerationOptions
+  ): CommitMessage {
+    try {
+      const commitMessage = this.fallbackGenerator.generateMessage(
+        diff,
+        options
+      );
+
+      // Validate the generated message
+      this.validateCommitMessage(commitMessage, options);
+
+      return commitMessage;
+    } catch (error) {
+      // If even fallback fails, create a basic message
+      return this.createBasicCommitMessage(diff, options);
+    }
+  }
+
+  /**
+   * Create a basic commit message as last resort
+   */
+  private createBasicCommitMessage(
+    diff: GitDiff,
+    options: GenerationOptions
+  ): CommitMessage {
+    const fileCount = diff.files.length;
+    const description =
+      fileCount === 1
+        ? `update ${diff.files[0].path.split("/").pop()}`
+        : `update ${fileCount} files`;
+
+    const subject =
+      this.userPreferences.commitStyle === "conventional"
+        ? `chore: ${description}`
+        : description;
+
+    return {
+      subject: this.truncateMessage(subject, options.maxLength),
+      type: "chore",
+      isConventional: this.userPreferences.commitStyle === "conventional",
+    };
   }
 
   /**
@@ -347,26 +398,53 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
     message: CommitMessage,
     options: GenerationOptions
   ): void {
+    // Check that subject is not empty
+    if (!message.subject.trim()) {
+      throw new ValidationError(
+        "Commit subject line cannot be empty",
+        "EMPTY_MESSAGE"
+      );
+    }
+
     // Check subject line length and truncate if needed
     if (message.subject.length > options.maxLength) {
       // Intelligently truncate the message
+      const originalLength = message.subject.length;
       message.subject = this.truncateMessage(
         message.subject,
         options.maxLength
       );
-    }
 
-    // Check that subject is not empty
-    if (!message.subject.trim()) {
-      throw new MessageValidationError("Commit subject line cannot be empty");
+      // Show warning about truncation
+      const truncationError = new ValidationError(
+        `Commit message was truncated from ${originalLength} to ${message.subject.length} characters`,
+        "MESSAGE_TOO_LONG",
+        "warning"
+      );
+
+      // Handle the warning asynchronously
+      this.errorHandler
+        .handleValidationError(truncationError)
+        .then((response) => {
+          if (response.logLevel === "warn") {
+            this.errorHandler.showErrorToUser(response);
+          }
+        });
     }
 
     // Validate conventional commit format if required
-    if (
-      this.userPreferences.commitStyle === "conventional" &&
-      message.isConventional
-    ) {
+    if (this.userPreferences.commitStyle === "conventional") {
       this.validateConventionalFormat(message);
+      // Mark as conventional after validation/correction
+      message.isConventional = true;
+
+      // Check length again after format correction and truncate if needed
+      if (message.subject.length > options.maxLength) {
+        message.subject = this.truncateMessage(
+          message.subject,
+          options.maxLength
+        );
+      }
     }
   }
 
@@ -400,20 +478,73 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
       t.toString()
     );
     if (!validTypes.includes(message.type)) {
-      throw new MessageValidationError(
-        `Invalid commit type "${message.type}". Valid types: ${validTypes.join(
-          ", "
-        )}`
-      );
+      // Try to fix the type if possible
+      const fixedType = this.fixCommitType(message.type, validTypes);
+      if (fixedType) {
+        message.type = fixedType;
+        message.subject = message.subject.replace(
+          new RegExp(`^${message.type}`),
+          fixedType
+        );
+      } else {
+        throw new ValidationError(
+          `Invalid commit type "${
+            message.type
+          }". Valid types: ${validTypes.join(", ")}`,
+          "INVALID_COMMIT_FORMAT"
+        );
+      }
     }
 
     // Check conventional format pattern
     const conventionalPattern = /^(\w+)(?:\([^)]+\))?: .+$/;
     if (!conventionalPattern.test(message.subject)) {
-      throw new MessageValidationError(
-        "Commit message does not follow conventional format: type(scope): description"
-      );
+      // Try to fix the format
+      const fixedSubject = this.fixConventionalFormat(message);
+      if (fixedSubject) {
+        message.subject = fixedSubject;
+      } else {
+        throw new ValidationError(
+          "Commit message does not follow conventional format: type(scope): description",
+          "INVALID_COMMIT_FORMAT"
+        );
+      }
     }
+  }
+
+  /**
+   * Try to fix invalid commit type
+   */
+  private fixCommitType(
+    invalidType: string,
+    validTypes: string[]
+  ): string | null {
+    const typeMap: Record<string, string> = {
+      feature: "feat",
+      bugfix: "fix",
+      documentation: "docs",
+      styling: "style",
+      refactoring: "refactor",
+      testing: "test",
+      maintenance: "chore",
+      build: "chore",
+      ci: "chore",
+    };
+
+    return typeMap[invalidType.toLowerCase()] || null;
+  }
+
+  /**
+   * Try to fix conventional commit format
+   */
+  private fixConventionalFormat(message: CommitMessage): string | null {
+    // If it doesn't have the conventional format, try to add it
+    if (!message.subject.includes(":")) {
+      const scope = message.scope ? `(${message.scope})` : "";
+      return `${message.type}${scope}: ${message.subject}`;
+    }
+
+    return null;
   }
 
   /**
@@ -503,6 +634,7 @@ export class CommitMessageGeneratorImpl implements CommitMessageGenerator {
    */
   updatePreferences(preferences: UserPreferences): void {
     this.userPreferences = preferences;
+    this.fallbackGenerator.updatePreferences(preferences);
   }
 
   /**

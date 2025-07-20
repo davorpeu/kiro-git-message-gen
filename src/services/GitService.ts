@@ -7,6 +7,7 @@ import {
   RepoStatus,
   ConflictInfo,
 } from "../interfaces/GitService";
+import { GitError } from "./ErrorHandler";
 
 /**
  * Implementation of GitService for handling git operations
@@ -27,7 +28,7 @@ export class GitServiceImpl implements GitService {
   private getWorkspaceRoot(): string {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-      throw new Error("No workspace folder is open");
+      throw new GitError("No workspace folder is open", "NO_WORKSPACE");
     }
     return workspaceFolders[0].uri.fsPath;
   }
@@ -72,10 +73,11 @@ export class GitServiceImpl implements GitService {
         currentBranch,
       };
     } catch (error) {
-      throw new Error(
+      throw new GitError(
         `Failed to get repository status: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "REPOSITORY_ACCESS_ERROR"
       );
     }
   }
@@ -87,7 +89,7 @@ export class GitServiceImpl implements GitService {
     try {
       const isRepo = await this.isValidRepository();
       if (!isRepo) {
-        throw new Error("Not a git repository");
+        throw new GitError("Not a git repository", "NOT_A_REPOSITORY");
       }
 
       const status: StatusResult = await this.git.status();
@@ -150,10 +152,14 @@ export class GitServiceImpl implements GitService {
         summary: this.generateSummary(files, totalAdditions, totalDeletions),
       };
     } catch (error) {
-      throw new Error(
+      if (error instanceof GitError) {
+        throw error;
+      }
+      throw new GitError(
         `Failed to get all changes: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "REPOSITORY_ACCESS_ERROR"
       );
     }
   }
@@ -165,17 +171,12 @@ export class GitServiceImpl implements GitService {
     try {
       const isRepo = await this.isValidRepository();
       if (!isRepo) {
-        throw new Error("Not a git repository");
+        throw new GitError("Not a git repository", "NOT_A_REPOSITORY");
       }
 
       const status: StatusResult = await this.git.status();
       if (status.staged.length === 0) {
-        return {
-          files: [],
-          additions: 0,
-          deletions: 0,
-          summary: "No staged changes",
-        };
+        throw new GitError("No staged changes found", "NO_STAGED_CHANGES");
       }
 
       // Get diff for staged changes
@@ -227,10 +228,14 @@ export class GitServiceImpl implements GitService {
         summary: this.generateSummary(files, totalAdditions, totalDeletions),
       };
     } catch (error) {
-      throw new Error(
+      if (error instanceof GitError) {
+        throw error;
+      }
+      throw new GitError(
         `Failed to get staged changes: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "REPOSITORY_ACCESS_ERROR"
       );
     }
   }
@@ -355,10 +360,11 @@ export class GitServiceImpl implements GitService {
         conflictedFiles,
       };
     } catch (error) {
-      throw new Error(
+      throw new GitError(
         `Failed to get conflict status: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "REPOSITORY_ACCESS_ERROR"
       );
     }
   }

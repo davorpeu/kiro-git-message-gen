@@ -3,33 +3,7 @@ import { AIService, AIModel, ChangeContext } from "../interfaces/AIService";
 import { GitDiff } from "../interfaces/GitService";
 import { CommitType } from "../interfaces/CommitMessageGenerator";
 
-/**
- * Error types for AI service operations
- */
-export class AIServiceError extends Error {
-  constructor(message: string, public readonly code: string) {
-    super(message);
-    this.name = "AIServiceError";
-  }
-}
-
-export class AIServiceUnavailableError extends AIServiceError {
-  constructor(message: string = "AI service is currently unavailable") {
-    super(message, "SERVICE_UNAVAILABLE");
-  }
-}
-
-export class AIRateLimitError extends AIServiceError {
-  constructor(message: string = "AI service rate limit exceeded") {
-    super(message, "RATE_LIMIT_EXCEEDED");
-  }
-}
-
-export class AIInvalidResponseError extends AIServiceError {
-  constructor(message: string = "AI service returned invalid response") {
-    super(message, "INVALID_RESPONSE");
-  }
-}
+import { AIError } from "./ErrorHandler";
 
 /**
  * Implementation of AIService that interfaces with Kiro's AI capabilities
@@ -61,10 +35,11 @@ export class KiroAIService implements AIService {
       this.currentModel = await this.detectCurrentModel();
       this.isInitialized = true;
     } catch (error) {
-      throw new AIServiceUnavailableError(
+      throw new AIError(
         `Failed to initialize AI service: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "SERVICE_UNAVAILABLE"
       );
     }
   }
@@ -78,7 +53,10 @@ export class KiroAIService implements AIService {
     }
 
     if (!this.currentModel) {
-      throw new AIServiceUnavailableError("No AI model is currently available");
+      throw new AIError(
+        "No AI model is currently available",
+        "MODEL_NOT_AVAILABLE"
+      );
     }
 
     return this.currentModel;
@@ -106,7 +84,7 @@ export class KiroAIService implements AIService {
     context: ChangeContext
   ): Promise<string> {
     if (!(await this.isAvailable())) {
-      throw new AIServiceUnavailableError("AI service is not available");
+      throw new AIError("AI service is not available", "SERVICE_UNAVAILABLE");
     }
 
     try {
@@ -122,24 +100,27 @@ export class KiroAIService implements AIService {
 
       return cleanedResponse;
     } catch (error) {
-      if (error instanceof AIServiceError) {
+      if (error instanceof AIError) {
         throw error;
       }
 
       // Handle different types of errors
       if (error instanceof Error) {
         if (error.message.includes("rate limit")) {
-          throw new AIRateLimitError();
+          throw new AIError(
+            "AI service rate limit exceeded",
+            "RATE_LIMIT_EXCEEDED"
+          );
         }
         if (
           error.message.includes("unavailable") ||
           error.message.includes("timeout")
         ) {
-          throw new AIServiceUnavailableError();
+          throw new AIError("AI service is unavailable", "SERVICE_UNAVAILABLE");
         }
       }
 
-      throw new AIServiceError(
+      throw new AIError(
         `Failed to generate commit message: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
@@ -742,8 +723,9 @@ Rules:
     context: ChangeContext
   ): string {
     if (!response || typeof response !== "string") {
-      throw new AIInvalidResponseError(
-        "AI service returned empty or invalid response"
+      throw new AIError(
+        "AI service returned empty or invalid response",
+        "INVALID_RESPONSE"
       );
     }
 
@@ -775,7 +757,10 @@ Rules:
 
     // Ensure it's not empty after cleaning
     if (!cleaned) {
-      throw new AIInvalidResponseError("AI response was empty after cleaning");
+      throw new AIError(
+        "AI response was empty after cleaning",
+        "INVALID_RESPONSE"
+      );
     }
 
     return cleaned;

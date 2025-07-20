@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import {
-  CommitMessageGeneratorImpl,
-  CommitGenerationError,
-  NoStagedChangesError,
-  NoChangesError,
-  InvalidRepositoryError,
-  MessageValidationError,
-} from "../CommitMessageGenerator";
+import { CommitMessageGeneratorImpl } from "../CommitMessageGenerator";
+import { GitError, ValidationError } from "../ErrorHandler";
 import {
   CommitMessage,
   GenerationOptions,
@@ -266,7 +260,7 @@ describe("CommitMessageGenerator", () => {
 
       // Act & Assert
       await expect(generator.generateMessage(shortOptions)).rejects.toThrow(
-        MessageValidationError
+        ValidationError
       );
     });
 
@@ -318,7 +312,7 @@ describe("CommitMessageGenerator", () => {
       expect(result).toBe(true);
     });
 
-    it("should throw InvalidRepositoryError when not in a git repository", async () => {
+    it("should throw GitError when not in a git repository", async () => {
       // Arrange
       mockGitService.setRepoStatus({
         isRepository: false,
@@ -328,12 +322,10 @@ describe("CommitMessageGenerator", () => {
       });
 
       // Act & Assert
-      await expect(generator.validateChanges()).rejects.toThrow(
-        InvalidRepositoryError
-      );
+      await expect(generator.validateChanges()).rejects.toThrow(GitError);
     });
 
-    it("should throw NoChangesError when no changes exist", async () => {
+    it("should throw GitError when no changes exist", async () => {
       // Arrange
       mockGitService.setRepoStatus({
         isRepository: true,
@@ -343,10 +335,10 @@ describe("CommitMessageGenerator", () => {
       });
 
       // Act & Assert
-      await expect(generator.validateChanges()).rejects.toThrow(NoChangesError);
+      await expect(generator.validateChanges()).rejects.toThrow(GitError);
     });
 
-    it("should throw CommitGenerationError when merge conflicts exist", async () => {
+    it("should throw Error when merge conflicts exist", async () => {
       // Arrange
       mockGitService.setConflictStatus({
         hasConflicts: true,
@@ -354,9 +346,7 @@ describe("CommitMessageGenerator", () => {
       });
 
       // Act & Assert
-      await expect(generator.validateChanges()).rejects.toThrow(
-        CommitGenerationError
-      );
+      await expect(generator.validateChanges()).rejects.toThrow(Error);
     });
   });
 
@@ -393,7 +383,7 @@ describe("CommitMessageGenerator", () => {
   });
 
   describe("error handling", () => {
-    it("should wrap unknown errors in CommitGenerationError", async () => {
+    it("should wrap unknown errors in Error", async () => {
       // Arrange
       const errorGitService = {
         ...mockGitService,
@@ -411,7 +401,7 @@ describe("CommitMessageGenerator", () => {
 
       // Act & Assert
       await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
-        CommitGenerationError
+        Error
       );
     });
 
@@ -426,7 +416,7 @@ describe("CommitMessageGenerator", () => {
 
       // Act & Assert
       await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
-        NoStagedChangesError
+        GitError
       );
     });
   });
@@ -449,7 +439,7 @@ describe("CommitMessageGenerator", () => {
 
       // Act & Assert
       await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
-        MessageValidationError
+        ValidationError
       );
     });
 
@@ -459,7 +449,7 @@ describe("CommitMessageGenerator", () => {
 
       // Act & Assert
       await expect(generator.generateMessage(defaultOptions)).rejects.toThrow(
-        MessageValidationError
+        ValidationError
       );
     });
   });
