@@ -1,0 +1,42 @@
+# Source files
+src/**
+!src/schemas/**
+
+# Test files
+**/__tests__/**
+**/*.test.*
+test-*.js
+debug-*.js
+verify-*.js
+package-extension.js
+
+# Build files
+tsconfig.json
+vitest.config.ts
+.vscode/
+
+# Development files
+node_modules/**
+.git/**
+.gitignore
+.kiro/**
+
+# Documentation (keep README.md, LICENSE, CHANGELOG.md)
+CONTRIBUTING.md
+docs/**
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Package files
+*.vsix
+*.tgz

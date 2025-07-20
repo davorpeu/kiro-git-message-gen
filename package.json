@@ -3,7 +3,17 @@
   "displayName": "Kiro Git Commit Message Generator",
   "description": "Generate intelligent git commit messages using Kiro's AI based on your code changes",
   "version": "0.1.0",
-  "publisher": "kiro",
+  "publisher": "dadop",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davorpeu/kiro-git-message-gen.git"
+  },
+  "homepage": "https://github.com/davorpeu/kiro-git-message-gen#readme",
+  "bugs": {
+    "url": "https://github.com/davorpeu/kiro-git-message-gen/issues"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.80.0",
     "kiro": "^1.0.0"
@@ -20,7 +30,6 @@
     "conventional-commits"
   ],
   "activationEvents": [
-    "onCommand:git-commit-generator.generate",
     "onView:scm"
   ],
   "main": "./dist/extension.js",
