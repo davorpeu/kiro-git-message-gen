@@ -2,7 +2,7 @@
   "name": "git-commit-generator",
   "displayName": "Kiro Git Commit Message Generator",
   "description": "Generate intelligent git commit messages using Kiro's AI based on your code changes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "dadop",
   "icon": "resources/icon.png",
   "repository": {
